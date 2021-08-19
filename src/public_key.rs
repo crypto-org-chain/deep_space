@@ -115,7 +115,9 @@ impl PublicKey {
     /// provided as a utility for one step creation and change of prefix if the conventions
     /// in `to_address()` are incorrect
     pub fn to_ethermint_address_with_prefix(&self, prefix: &str) -> Result<Address, AddressError> {
-        let bytes = &keccak256_hash(&self.as_uncompressed_bytes())[12..];
+        let bytes = self.as_uncompressed_bytes();
+        debug_assert_eq!(bytes[0], 0x04);
+        let bytes = &keccak256_hash(&bytes[1..])[12..];
         Address::from_slice(bytes, prefix)
     }
 

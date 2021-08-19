@@ -2,7 +2,7 @@ use crate::client::types::*;
 use crate::coin::Coin;
 use crate::coin::Fee;
 use crate::{address::Address, private_key::MessageArgs};
-use crate::{client::Contact, error::CosmosGrpcError};
+use crate::{client::types::EthAccount, client::Contact, error::CosmosGrpcError};
 use bytes::BytesMut;
 use cosmos_sdk_proto::cosmos::auth::v1beta1::{
     query_client::QueryClient as AuthQueryClient, BaseAccount as ProtoBaseAccount,
@@ -109,12 +109,14 @@ impl Contact {
                     PeriodicVestingAccount::decode(buf.clone()),
                     ContinuousVestingAccount::decode(buf.clone()),
                     DelayedVestingAccount::decode(buf.clone()),
+                    EthAccount::decode(value.value.as_slice()),
                 ) {
-                    (Ok(d), _, _, _) => Ok(d.get_base_account()),
-                    (_, Ok(d), _, _) => Ok(d.get_base_account()),
-                    (_, _, Ok(d), _) => Ok(d.get_base_account()),
-                    (_, _, _, Ok(d)) => Ok(d.get_base_account()),
-                    (Err(e), _, _, _) => Err(CosmosGrpcError::DecodeError { error: e }),
+                    (Ok(d), _, _, _, _) => Ok(d.get_base_account()),
+                    (_, Ok(d), _, _, _) => Ok(d.get_base_account()),
+                    (_, _, Ok(d), _, _) => Ok(d.get_base_account()),
+                    (_, _, _, Ok(d), _) => Ok(d.get_base_account()),
+                    (_, _, _, _, Ok(d)) => Ok(d.get_base_account()),
+                    (Err(e), _, _, _, _) => Err(CosmosGrpcError::DecodeError { error: e }),
                 }
             }
             Err(e) => match e.code() {

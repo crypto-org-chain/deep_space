@@ -35,6 +35,7 @@ pub enum CosmosGrpcError {
     TransactionFailed { tx: TxResponse, time: Duration },
     InsufficientFees { fee_info: FeeInfo },
     ParseError { error: ParseBigIntError },
+    InvalidAccount { type_url: String },
 }
 
 impl Display for CosmosGrpcError {
@@ -85,6 +86,10 @@ impl Display for CosmosGrpcError {
             }
             CosmosGrpcError::ParseError { error } => {
                 write!(f, "Failed to Parse BigInt {:?}", error)
+            }
+
+            CosmosGrpcError::InvalidAccount { type_url } => {
+                write!(f, "CosmosGrpc could not decode account: {}", type_url)
             }
         }
     }

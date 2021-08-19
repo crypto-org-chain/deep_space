@@ -33,6 +33,7 @@ pub enum CosmosGrpcError {
     NoBlockProduced { time: Duration },
     TransactionFailed { tx: TxResponse, time: Duration },
     InsufficientFees { fee_info: FeeInfo },
+    InvalidAccount { type_url: String },
 }
 
 impl Display for CosmosGrpcError {
@@ -80,6 +81,9 @@ impl Display for CosmosGrpcError {
             }
             CosmosGrpcError::InsufficientFees { fee_info } => {
                 write!(f, "Insufficient fees or gas for transaction {:?}", fee_info)
+            }
+            CosmosGrpcError::InvalidAccount { type_url } => {
+                write!(f, "CosmosGrpc could not decode account: {}", type_url)
             }
         }
     }

@@ -1,6 +1,6 @@
 use crate::mnemonic::Mnemonic;
 use crate::msg::Msg;
-use crate::public_key::PublicKey;
+use crate::public_key::{PublicKey, COSMOS_PUBKEY_URL};
 use crate::utils::bytes_to_hex_str;
 use crate::utils::encode_any;
 use crate::utils::hex_str_to_bytes;
@@ -144,6 +144,7 @@ impl PrivateKey {
         messages: &[Msg],
         args: MessageArgs,
         memo: impl Into<String>,
+        pk_url: &str,
     ) -> Result<TxParts, PrivateKeyError> {
         // prefix does not matter in this case, you could use a blank string
         let our_pubkey = self.to_public_key(PublicKey::DEFAULT_PREFIX)?;
@@ -164,7 +165,7 @@ impl PrivateKey {
             key: our_pubkey.to_vec(),
         };
 
-        let pk_any = encode_any(key, "/cosmos.crypto.secp256k1.PubKey".to_string());
+        let pk_any = encode_any(key, pk_url.to_string());
 
         let single = mode_info::Single { mode: 1 };
 
@@ -217,13 +218,14 @@ impl PrivateKey {
 
     /// Signs a transaction that contains at least one message using a single
     /// private key, returns the standard Tx type, useful for simulations
-    pub fn get_signed_tx(
+    pub fn get_signed_tx_ethermint(
         &self,
         messages: &[Msg],
         args: MessageArgs,
         memo: impl Into<String>,
+        pk_url: &str,
     ) -> Result<Tx, PrivateKeyError> {
-        let parts = self.build_tx(messages, args, memo)?;
+        let parts = self.build_tx(messages, args, memo, pk_url)?;
         Ok(Tx {
             body: Some(parts.body),
             auth_info: Some(parts.auth_info),
@@ -232,14 +234,26 @@ impl PrivateKey {
     }
 
     /// Signs a transaction that contains at least one message using a single
-    /// private key.
-    pub fn sign_std_msg(
+    /// private key, returns the standard Tx type, useful for simulations
+    pub fn get_signed_tx(
         &self,
         messages: &[Msg],
         args: MessageArgs,
         memo: impl Into<String>,
+    ) -> Result<Tx, PrivateKeyError> {
+        self.get_signed_tx_ethermint(messages, args, memo, COSMOS_PUBKEY_URL)
+    }
+
+    /// Signs a transaction that contains at least one message using a single
+    /// private key.
+    pub fn sign_std_msg_ethermint(
+        &self,
+        messages: &[Msg],
+        args: MessageArgs,
+        memo: impl Into<String>,
+        pk_url: &str,
     ) -> Result<Vec<u8>, PrivateKeyError> {
-        let parts = self.build_tx(messages, args, memo)?;
+        let parts = self.build_tx(messages, args, memo, pk_url)?;
 
         let tx_raw = TxRaw {
             body_bytes: parts.body_buf,
@@ -253,6 +267,17 @@ impl PrivateKey {
         trace!("TXID {}", bytes_to_hex_str(&digest));
 
         Ok(txraw_buf)
+    }
+
+    /// Signs a transaction that contains at least one message using a single
+    /// private key.
+    pub fn sign_std_msg(
+        &self,
+        messages: &[Msg],
+        args: MessageArgs,
+        memo: impl Into<String>,
+    ) -> Result<Vec<u8>, PrivateKeyError> {
+        self.sign_std_msg_ethermint(messages, args, memo, COSMOS_PUBKEY_URL)
     }
 }
 

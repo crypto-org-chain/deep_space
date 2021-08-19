@@ -36,5 +36,5 @@ pub use mnemonic::Mnemonic;
 pub use msg::Msg;
 pub use private_key::MessageArgs;
 pub use private_key::PrivateKey;
-pub use public_key::PublicKey;
+pub use public_key::{PublicKey, COSMOS_PUBKEY_URL};
 pub use signature::Signature;

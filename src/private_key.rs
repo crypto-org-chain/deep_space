@@ -126,8 +126,7 @@ impl PrivateKey {
         let secp256k1 = Secp256k1::new();
         let sk = SecretKey::from_slice(&self.0)?;
         let pkey = PublicKeyEC::from_secret_key(&secp256k1, &sk);
-        let compressed = pkey.serialize();
-        Ok(PublicKey::from_bytes(compressed, prefix)?)
+        Ok(PublicKey::new(pkey, prefix)?)
     }
 
     /// Obtain an Address for a given private key, skipping the intermediate public key

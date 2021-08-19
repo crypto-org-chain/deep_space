@@ -9,10 +9,15 @@ use std::fmt::{self, Display, Formatter};
 use std::hash::Hash;
 use std::str::FromStr;
 
+use secp256k1::{constants, PublicKey as PublicKeyEC};
+use tiny_keccak::{Hasher, Keccak};
+
+pub static COSMOS_PUBKEY_URL: &str = "/cosmos.crypto.secp256k1.PubKey";
+
 /// Represents a public key of a given private key in the Cosmos Network.
 #[derive(PartialEq, Eq, Copy, Clone, Hash)]
 pub struct PublicKey {
-    bytes: [u8; 33],
+    pkey: PublicKeyEC,
     prefix: ArrayString,
 }
 
@@ -21,14 +26,24 @@ impl PublicKey {
     /// we fall back to this value
     pub const DEFAULT_PREFIX: &'static str = "cosmospub";
 
+    /// Create a public key
+    pub fn new<T: Into<String>>(pkey: PublicKeyEC, prefix: T) -> Result<Self, PublicKeyError> {
+        Ok(Self {
+            pkey,
+            prefix: ArrayString::new(&prefix.into())?,
+        })
+    }
+
     /// Create a public key using a slice of bytes
     pub fn from_slice<T: Into<String>>(bytes: &[u8], prefix: T) -> Result<Self, PublicKeyError> {
         if bytes.len() != 33 {
             return Err(PublicKeyError::BytesDecodeErrorWrongLength);
         }
-        let mut result = [0u8; 33];
-        result.copy_from_slice(bytes);
-        PublicKey::from_bytes(result, prefix)
+        Ok(PublicKey::new(
+            PublicKeyEC::from_slice(bytes)
+                .map_err(|_| PublicKeyError::BytesDecodeErrorWrongLength)?,
+            prefix,
+        )?)
     }
 
     /// Create a public key using an array of bytes
@@ -36,19 +51,25 @@ impl PublicKey {
         bytes: [u8; 33],
         prefix: T,
     ) -> Result<PublicKey, PublicKeyError> {
-        Ok(PublicKey {
-            bytes,
-            prefix: ArrayString::new(&prefix.into())?,
-        })
+        Ok(PublicKey::new(
+            PublicKeyEC::from_slice(&bytes)
+                .map_err(|_| PublicKeyError::BytesDecodeErrorWrongLength)?,
+            prefix,
+        )?)
     }
 
-    /// Returns bytes of a given public key as a slice of bytes
-    pub fn as_bytes(&self) -> &[u8] {
-        &self.bytes
+    /// Returns compressed bytes of a given public key as a slice of bytes
+    pub fn as_bytes(&self) -> [u8; constants::PUBLIC_KEY_SIZE] {
+        self.pkey.serialize()
+    }
+
+    /// Returns uncompressed bytes of a given public key as a slice of bytes
+    pub fn as_uncompressed_bytes(&self) -> [u8; constants::UNCOMPRESSED_PUBLIC_KEY_SIZE] {
+        self.pkey.serialize_uncompressed()
     }
 
     pub fn to_vec(&self) -> Vec<u8> {
-        self.bytes.to_vec()
+        self.as_bytes().to_vec()
     }
 
     pub fn get_prefix(&self) -> String {
@@ -83,11 +104,19 @@ impl PublicKey {
     /// provided as a utility for one step creation and change of prefix if the conventions
     /// in `to_address()` are incorrect
     pub fn to_address_with_prefix(&self, prefix: &str) -> Result<Address, AddressError> {
-        let sha256 = Sha256::digest(&self.bytes);
+        let sha256 = Sha256::digest(&self.as_bytes());
         let ripemd160 = Ripemd160::digest(&sha256);
         let mut bytes: [u8; 20] = Default::default();
         bytes.copy_from_slice(&ripemd160[..]);
         Address::from_bytes(bytes, prefix)
+    }
+
+    /// Create an ethermint address object using a given public key with the given prefix
+    /// provided as a utility for one step creation and change of prefix if the conventions
+    /// in `to_address()` are incorrect
+    pub fn to_ethermint_address_with_prefix(&self, prefix: &str) -> Result<Address, AddressError> {
+        let bytes = &keccak256_hash(&self.as_uncompressed_bytes())[12..];
+        Address::from_slice(bytes, prefix)
     }
 
     /// Creates amino representation of a given public key.
@@ -95,7 +124,7 @@ impl PublicKey {
     /// It is used internally for bech32 encoding.
     pub fn to_amino_bytes(&self) -> Vec<u8> {
         let mut key_bytes = vec![0xEB, 0x5A, 0xE9, 0x87, 0x21];
-        key_bytes.extend(self.as_bytes());
+        key_bytes.extend(&self.as_bytes());
         key_bytes
     }
 
@@ -179,6 +208,14 @@ impl fmt::Debug for PublicKey {
     }
 }
 
+fn keccak256_hash(bytes: &[u8]) -> Vec<u8> {
+    let mut hasher = Keccak::v256();
+    hasher.update(bytes);
+    let mut resp = vec![0u8; 32];
+    hasher.finalize(&mut resp);
+    resp
+}
+
 #[test]
 fn check_bech32() {
     let raw_bytes = [
@@ -188,7 +225,7 @@ fn check_bech32() {
     ];
     let public_key = PublicKey::from_slice(&raw_bytes, PublicKey::DEFAULT_PREFIX)
         .expect("Unable to create bytes from slice");
-    assert_eq!(&public_key.bytes[..], &raw_bytes[..]);
+    assert_eq!(&public_key.as_bytes(), &raw_bytes[..]);
     let res = public_key.to_string();
 
     // ground truth
@@ -226,5 +263,6 @@ fn parse_base64_pubkey() {
 
 #[test]
 fn test_default_prefix() {
-    PublicKey::from_bytes([0; 33], PublicKey::DEFAULT_PREFIX).unwrap();
+    // public key is invalid
+    PublicKey::from_bytes([0; 33], PublicKey::DEFAULT_PREFIX).unwrap_err();
 }

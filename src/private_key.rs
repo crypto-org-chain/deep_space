@@ -4,6 +4,7 @@ use crate::public_key::{PublicKey, COSMOS_PUBKEY_URL};
 use crate::utils::bytes_to_hex_str;
 use crate::utils::encode_any;
 use crate::utils::hex_str_to_bytes;
+use crate::utils::keccak256_hash;
 use crate::{coin::Fee, Address};
 use crate::{error::*, utils::contains_non_hex_chars};
 use cosmos_sdk_proto::cosmos::crypto::secp256k1::PubKey as ProtoSecp256k1Pubkey;
@@ -36,6 +37,11 @@ struct TxParts {
     auth_info: AuthInfo,
     auth_buf: Vec<u8>,
     signatures: Vec<Vec<u8>>,
+}
+
+enum SignType {
+    Cosmos,
+    Ethermint,
 }
 
 /// This structure represents a private key of a Cosmos Network.
@@ -145,6 +151,7 @@ impl PrivateKey {
         args: MessageArgs,
         memo: impl Into<String>,
         pk_url: &str,
+        sign_type: SignType,
     ) -> Result<TxParts, PrivateKeyError> {
         // prefix does not matter in this case, you could use a blank string
         let our_pubkey = self.to_public_key(PublicKey::DEFAULT_PREFIX)?;
@@ -201,11 +208,23 @@ impl PrivateKey {
 
         let secp256k1 = Secp256k1::new();
         let sk = SecretKey::from_slice(&self.0)?;
-        let digest = Sha256::digest(&signdoc_buf);
-        let msg = CurveMessage::from_slice(&digest)?;
-        // Sign the signdoc
-        let signed = secp256k1.sign(&msg, &sk);
-        let compact = signed.serialize_compact().to_vec();
+        let compact = match sign_type {
+            SignType::Cosmos => {
+                let digest = Sha256::digest(&signdoc_buf);
+                let msg = CurveMessage::from_slice(&digest)?;
+                // Sign the signdoc
+                let signed = secp256k1.sign(&msg, &sk);
+                signed.serialize_compact().to_vec()
+            }
+            SignType::Ethermint => {
+                let hash = keccak256_hash(&signdoc_buf);
+                let s = Secp256k1::signing_only();
+                // SAFETY: hash is 32 bytes, as expected in `Message::from_slice` -- see `keccak256_hash`, hence `unwrap`
+                let sign_msg = CurveMessage::from_slice(hash.as_slice()).unwrap();
+                let (_, sig_bytes) = s.sign_recoverable(&sign_msg, &sk).serialize_compact();
+                sig_bytes.to_vec()
+            }
+        };
 
         Ok(TxParts {
             body,
@@ -213,6 +232,22 @@ impl PrivateKey {
             auth_info,
             auth_buf,
             signatures: vec![compact],
+        })
+    }
+
+    fn do_get_signed_tx(
+        &self,
+        messages: &[Msg],
+        args: MessageArgs,
+        memo: impl Into<String>,
+        pk_url: &str,
+        sign_type: SignType,
+    ) -> Result<Tx, PrivateKeyError> {
+        let parts = self.build_tx(messages, args, memo, pk_url, sign_type)?;
+        Ok(Tx {
+            body: Some(parts.body),
+            auth_info: Some(parts.auth_info),
+            signatures: parts.signatures,
         })
     }
 
@@ -225,12 +260,7 @@ impl PrivateKey {
         memo: impl Into<String>,
         pk_url: &str,
     ) -> Result<Tx, PrivateKeyError> {
-        let parts = self.build_tx(messages, args, memo, pk_url)?;
-        Ok(Tx {
-            body: Some(parts.body),
-            auth_info: Some(parts.auth_info),
-            signatures: parts.signatures,
-        })
+        self.do_get_signed_tx(messages, args, memo, pk_url, SignType::Ethermint)
     }
 
     /// Signs a transaction that contains at least one message using a single
@@ -241,19 +271,18 @@ impl PrivateKey {
         args: MessageArgs,
         memo: impl Into<String>,
     ) -> Result<Tx, PrivateKeyError> {
-        self.get_signed_tx_ethermint(messages, args, memo, COSMOS_PUBKEY_URL)
+        self.do_get_signed_tx(messages, args, memo, COSMOS_PUBKEY_URL, SignType::Cosmos)
     }
 
-    /// Signs a transaction that contains at least one message using a single
-    /// private key.
-    pub fn sign_std_msg_ethermint(
+    fn do_sign_std_msg(
         &self,
         messages: &[Msg],
         args: MessageArgs,
         memo: impl Into<String>,
         pk_url: &str,
+        sign_type: SignType,
     ) -> Result<Vec<u8>, PrivateKeyError> {
-        let parts = self.build_tx(messages, args, memo, pk_url)?;
+        let parts = self.build_tx(messages, args, memo, pk_url, sign_type)?;
 
         let tx_raw = TxRaw {
             body_bytes: parts.body_buf,
@@ -271,13 +300,25 @@ impl PrivateKey {
 
     /// Signs a transaction that contains at least one message using a single
     /// private key.
+    pub fn sign_std_msg_ethermint(
+        &self,
+        messages: &[Msg],
+        args: MessageArgs,
+        memo: impl Into<String>,
+        pk_url: &str,
+    ) -> Result<Vec<u8>, PrivateKeyError> {
+        self.do_sign_std_msg(messages, args, memo, pk_url, SignType::Ethermint)
+    }
+
+    /// Signs a transaction that contains at least one message using a single
+    /// private key.
     pub fn sign_std_msg(
         &self,
         messages: &[Msg],
         args: MessageArgs,
         memo: impl Into<String>,
     ) -> Result<Vec<u8>, PrivateKeyError> {
-        self.sign_std_msg_ethermint(messages, args, memo, COSMOS_PUBKEY_URL)
+        self.do_sign_std_msg(messages, args, memo, COSMOS_PUBKEY_URL, SignType::Cosmos)
     }
 }
 

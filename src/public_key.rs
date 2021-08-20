@@ -1,5 +1,5 @@
 use crate::error::*;
-use crate::utils::hex_str_to_bytes;
+use crate::utils::{hex_str_to_bytes, keccak256_hash};
 use crate::{address::Address, utils::ArrayString};
 use bech32::Variant;
 use bech32::{self, FromBase32, ToBase32};
@@ -10,7 +10,6 @@ use std::hash::Hash;
 use std::str::FromStr;
 
 use secp256k1::{constants, PublicKey as PublicKeyEC};
-use tiny_keccak::{Hasher, Keccak};
 
 pub static COSMOS_PUBKEY_URL: &str = "/cosmos.crypto.secp256k1.PubKey";
 
@@ -208,14 +207,6 @@ impl fmt::Debug for PublicKey {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}", self.to_bech32(self.get_prefix()).unwrap())
     }
-}
-
-fn keccak256_hash(bytes: &[u8]) -> Vec<u8> {
-    let mut hasher = Keccak::v256();
-    hasher.update(bytes);
-    let mut resp = vec![0u8; 32];
-    hasher.finalize(&mut resp);
-    resp
 }
 
 #[test]

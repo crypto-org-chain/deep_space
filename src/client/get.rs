@@ -2,7 +2,7 @@ use crate::client::types::*;
 use crate::coin::Coin;
 use crate::coin::Fee;
 use crate::{address::Address, private_key::MessageArgs};
-use crate::{client::Contact, error::CosmosGrpcError};
+use crate::{client::types::EthAccount, client::Contact, error::CosmosGrpcError};
 use bytes::BytesMut;
 use cosmos_sdk_proto::cosmos::auth::v1beta1::{
     query_client::QueryClient as AuthQueryClient, BaseAccount, QueryAccountRequest,
@@ -98,10 +98,20 @@ impl Contact {
             Ok(account) => {
                 // null pointer if this fails to unwrap
                 let value = account.into_inner().account.unwrap();
-                let mut buf = BytesMut::with_capacity(value.value.len());
-                buf.extend_from_slice(&value.value);
-                let decoded: BaseAccount = BaseAccount::decode(buf)?;
-                Ok(decoded)
+                if value.type_url == "/cosmos.auth.v1beta1.BaseAccount" {
+                    let mut buf = BytesMut::with_capacity(value.value.len());
+                    buf.extend_from_slice(&value.value);
+                    let decoded: BaseAccount = BaseAccount::decode(buf)?;
+                    Ok(decoded)
+                } else {
+                    // Assuming EthAccount
+                    let base_account = EthAccount::decode(value.value.as_slice())?
+                        .base_account
+                        .ok_or(CosmosGrpcError::InvalidAccount {
+                            type_url: value.type_url,
+                        })?;
+                    Ok(base_account)
+                }
             }
             Err(e) => match e.code() {
                 GrpcCode::NotFound => Err(CosmosGrpcError::NoToken),

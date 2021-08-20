@@ -577,3 +577,20 @@ fn test_many_key_generation() {
         let _cosmos_address = cosmos_key.to_public_key("cosmospub").unwrap().to_address();
     }
 }
+
+#[test]
+fn test_ethermint() {
+    let private_key = PrivateKey::from_hd_wallet_path("m/44'/60'/0'/0/0", "visit craft resemble online window solution west chuckle music diesel vital settle comic tribe project blame bulb armed flower region sausage mercy arrive release", "").unwrap();
+    let pubkey = private_key.to_public_key("").unwrap();
+    let address = pubkey.to_ethermint_address_with_prefix("eth").unwrap();
+    // ethermint style
+    assert_eq!(
+        "eth12luku6uxehhak02py4rcz65zu0swh7wjanhxd0",
+        address.to_string()
+    );
+    // cosmos style
+    assert_eq!(
+        "eth15dj8rcvy3v43rqnftdwznl7hndtyptuyecf3wy",
+        private_key.to_address("eth").unwrap().to_string()
+    );
+}

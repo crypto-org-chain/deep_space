@@ -9,8 +9,11 @@ use crate::private_key::PrivateKey;
 use crate::utils::check_tx_response;
 use crate::utils::determine_min_fees_and_gas;
 use cosmos_sdk_proto::cosmos::bank::v1beta1::MsgSend;
+use cosmos_sdk_proto::cosmos::base::abci::v1beta1::GasInfo;
 use cosmos_sdk_proto::cosmos::tx::v1beta1::BroadcastMode;
 use cosmos_sdk_proto::cosmos::tx::v1beta1::BroadcastTxRequest;
+use cosmos_sdk_proto::cosmos::tx::v1beta1::SimulateRequest;
+use cosmos_sdk_proto::cosmos::tx::v1beta1::Tx;
 use cosmos_sdk_proto::cosmos::{
     base::abci::v1beta1::TxResponse, tx::v1beta1::service_client::ServiceClient as TxServiceClient,
 };
@@ -50,6 +53,27 @@ impl Contact {
         }
         Ok(response)
     }
+
+
+    pub async fn simulate_tx(
+        &self,
+        // proto serialized message for us to turn into an 'any' object
+        msg: Tx,
+    ) -> Result<GasInfo, CosmosGrpcError> {
+        let mut txrpc = TxServiceClient::connect(self.get_url()).await?;
+        let response = txrpc
+            .simulate(SimulateRequest {
+                tx: Some(msg),
+            })
+            .await?
+            .into_inner()
+            .gas_info
+            .unwrap();
+
+        Ok(response)
+    }
+
+
 
     /// A utility function that creates a one to one simple transaction
     /// and sends it from the provided private key, waiting the configured

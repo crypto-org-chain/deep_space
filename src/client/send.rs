@@ -1,4 +1,3 @@
-use crate::MessageArgs;
 use crate::address::Address;
 use crate::client::Contact;
 use crate::client::MEMO;
@@ -7,6 +6,7 @@ use crate::coin::Fee;
 use crate::error::CosmosGrpcError;
 use crate::msg::Msg;
 use crate::private_key::PrivateKey;
+use crate::private_key::TxParts;
 use crate::utils::check_tx_response;
 use crate::utils::determine_min_fees_and_gas;
 use cosmos_sdk_proto::cosmos::bank::v1beta1::MsgSend;
@@ -15,7 +15,6 @@ use cosmos_sdk_proto::cosmos::tx::v1beta1::BroadcastMode;
 use cosmos_sdk_proto::cosmos::tx::v1beta1::BroadcastTxRequest;
 use cosmos_sdk_proto::cosmos::tx::v1beta1::SimulateRequest;
 use cosmos_sdk_proto::cosmos::tx::v1beta1::Tx;
-use cosmos_sdk_proto::cosmos::tx::v1beta1::TxBody;
 use cosmos_sdk_proto::cosmos::{
     base::abci::v1beta1::TxResponse, tx::v1beta1::service_client::ServiceClient as TxServiceClient,
 };
@@ -60,21 +59,12 @@ impl Contact {
     pub async fn simulate_tx(
         &self,
         // proto serialized message for us to turn into an 'any' object
-        messages: &[Msg],
-        args: MessageArgs,
-        memo: impl Into<String>,
+        tx_parts: TxParts,
     ) -> Result<GasInfo, CosmosGrpcError> {
         let mut txrpc = TxServiceClient::connect(self.get_url()).await?;
 
-        let body = TxBody {
-            messages: messages.iter().map(|msg| msg.0.clone()).collect(),
-            memo: memo.into(),
-            timeout_height: args.timeout_height,
-            extension_options: Default::default(),
-            non_critical_extension_options: Default::default(),
-        };
 
-        let tx = Tx { body: Some(body), auth_info: None, signatures: vec![] };
+        let tx = Tx { body: Some(tx_parts.body), auth_info: Some(tx_parts.auth_info), signatures: tx_parts.signatures };
 
         let response = txrpc
             .simulate(SimulateRequest {

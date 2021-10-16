@@ -30,12 +30,12 @@ pub struct MessageArgs {
     pub account_number: u64,
 }
 
-struct TxParts {
-    body: TxBody,
-    body_buf: Vec<u8>,
-    auth_info: AuthInfo,
-    auth_buf: Vec<u8>,
-    signatures: Vec<Vec<u8>>,
+pub struct TxParts {
+    pub body: TxBody,
+    pub body_buf: Vec<u8>,
+    pub auth_info: AuthInfo,
+    pub auth_buf: Vec<u8>,
+    pub signatures: Vec<Vec<u8>>,
 }
 
 /// This structure represents a private key of a Cosmos Network.

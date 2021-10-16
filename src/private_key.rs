@@ -140,7 +140,7 @@ impl PrivateKey {
     /// Internal function that that handles building a single message to sign
     /// returns an internal struct containing the parts of the built transaction
     /// in a way that's easy to mix and match for various uses and output types.
-    fn build_tx(
+    pub fn build_tx(
         &self,
         messages: &[Msg],
         args: MessageArgs,

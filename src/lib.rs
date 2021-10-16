@@ -40,91 +40,68 @@ pub use public_key::PublicKey;
 pub use signature::Signature;
 
 use cosmos_sdk_proto::cosmos::auth::v1beta1::BaseAccount;
-use cosmos_sdk_proto::cosmos::vesting::v1beta1::{PeriodicVestingAccount,DelayedVestingAccount,ContinuousVestingAccount};
+use cosmos_sdk_proto::cosmos::vesting::v1beta1::{
+    ContinuousVestingAccount, DelayedVestingAccount, PeriodicVestingAccount,
+};
 
-
-pub enum CosmosAccount{
+pub enum CosmosAccount {
     BaseAccount(BaseAccount),
     PeriodicVesting(PeriodicVestingAccount),
     DelayedVesting(DelayedVestingAccount),
     ContinuousVesting(ContinuousVestingAccount),
 }
 
-impl CosmosAccount{
-    pub fn get_sequence(&self) -> Option<u64>{
-        match self{
+impl CosmosAccount {
+    pub fn get_sequence(&self) -> Option<u64> {
+        match self {
             CosmosAccount::BaseAccount(ba) => Some(ba.sequence),
-            CosmosAccount::ContinuousVesting(cv)=>{
-                match &cv.base_vesting_account{
-                    Some(ba)=>{
-                        match &ba.base_account{
-                            Some(ba) => Some(ba.sequence),
-                            None => None,
-                        }
-                    }
+            CosmosAccount::ContinuousVesting(cv) => match &cv.base_vesting_account {
+                Some(ba) => match &ba.base_account {
+                    Some(ba) => Some(ba.sequence),
                     None => None,
-                }
-            }
-            CosmosAccount::PeriodicVesting(pv) => {
-                match &pv.base_vesting_account{
-                    Some(ba)=>{
-                        match &ba.base_account{
-                            Some(ba) => Some(ba.sequence),
-                            None => None,
-                        }
-                    }
-                    None => None,
-                }
+                },
+                None => None,
             },
-            CosmosAccount::DelayedVesting(dv) => {
-                match &dv.base_vesting_account{
-                    Some(ba)=>{
-                        match &ba.base_account{
-                            Some(ba) => Some(ba.sequence),
-                            None => None,
-                        }
-                    }
+            CosmosAccount::PeriodicVesting(pv) => match &pv.base_vesting_account {
+                Some(ba) => match &ba.base_account {
+                    Some(ba) => Some(ba.sequence),
                     None => None,
-                }
+                },
+                None => None,
+            },
+            CosmosAccount::DelayedVesting(dv) => match &dv.base_vesting_account {
+                Some(ba) => match &ba.base_account {
+                    Some(ba) => Some(ba.sequence),
+                    None => None,
+                },
+                None => None,
             },
         }
     }
 
-    pub fn get_account_number(&self) -> Option<u64>{
-        match self{
+    pub fn get_account_number(&self) -> Option<u64> {
+        match self {
             CosmosAccount::BaseAccount(ba) => Some(ba.account_number),
-            CosmosAccount::ContinuousVesting(cv)=>{
-                match &cv.base_vesting_account{
-                    Some(ba)=>{
-                        match &ba.base_account{
-                            Some(ba) => Some(ba.account_number),
-                            None => None,
-                        }
-                    }
+            CosmosAccount::ContinuousVesting(cv) => match &cv.base_vesting_account {
+                Some(ba) => match &ba.base_account {
+                    Some(ba) => Some(ba.account_number),
                     None => None,
-                }
-            }
-            CosmosAccount::PeriodicVesting(pv) => {
-                match &pv.base_vesting_account{
-                    Some(ba)=>{
-                        match &ba.base_account{
-                            Some(ba) => Some(ba.account_number),
-                            None => None,
-                        }
-                    }
-                    None => None,
-                }
+                },
+                None => None,
             },
-            CosmosAccount::DelayedVesting(dv) => {
-                match &dv.base_vesting_account{
-                    Some(ba)=>{
-                        match &ba.base_account{
-                            Some(ba) => Some(ba.account_number),
-                            None => None,
-                        }
-                    }
+            CosmosAccount::PeriodicVesting(pv) => match &pv.base_vesting_account {
+                Some(ba) => match &ba.base_account {
+                    Some(ba) => Some(ba.account_number),
                     None => None,
-                }
+                },
+                None => None,
+            },
+            CosmosAccount::DelayedVesting(dv) => match &dv.base_vesting_account {
+                Some(ba) => match &ba.base_account {
+                    Some(ba) => Some(ba.account_number),
+                    None => None,
+                },
+                None => None,
             },
         }
     }

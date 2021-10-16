@@ -55,7 +55,6 @@ impl Contact {
         Ok(response)
     }
 
-
     pub async fn simulate_tx(
         &self,
         // proto serialized message for us to turn into an 'any' object
@@ -63,13 +62,14 @@ impl Contact {
     ) -> Result<GasInfo, CosmosGrpcError> {
         let mut txrpc = TxServiceClient::connect(self.get_url()).await?;
 
-
-        let tx = Tx { body: Some(tx_parts.body), auth_info: Some(tx_parts.auth_info), signatures: tx_parts.signatures };
+        let tx = Tx {
+            body: Some(tx_parts.body),
+            auth_info: Some(tx_parts.auth_info),
+            signatures: tx_parts.signatures,
+        };
 
         let response = txrpc
-            .simulate(SimulateRequest {
-                tx: Some(tx),
-            })
+            .simulate(SimulateRequest { tx: Some(tx) })
             .await?
             .into_inner()
             .gas_info
@@ -77,8 +77,6 @@ impl Contact {
 
         Ok(response)
     }
-
-
 
     /// A utility function that creates a one to one simple transaction
     /// and sends it from the provided private key, waiting the configured

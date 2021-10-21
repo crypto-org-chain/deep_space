@@ -104,6 +104,7 @@ pub fn determine_min_fees_and_gas(input: &TxResponse) -> Option<FeeInfo> {
                     coins.push(coin);
                 }
             }
+            dbg!(&input);
             Some(FeeInfo::InsufficientFees { min_fees: coins })
         } else {
             error!("Failed parsing insufficient fee error, probably changed gRPC error message response");

@@ -52,11 +52,19 @@ pub struct BaseAccount {
 
 impl From<ProtoBaseAccount> for BaseAccount {
     fn from(value: ProtoBaseAccount) -> Self {
-        BaseAccount {
-            address: value.address.parse().unwrap(),
-            pubkey: value.pub_key.unwrap().value,
-            account_number: value.account_number,
-            sequence: value.sequence,
+        match value.pub_key{
+            Some(pub_key) => BaseAccount {
+                address: value.address.parse().unwrap(),
+                pubkey: pub_key.value,
+                account_number: value.account_number,
+                sequence: value.sequence,
+            },
+            None => BaseAccount {
+                address: value.address.parse().unwrap(),
+                pubkey: Vec::new(),
+                account_number: value.account_number,
+                sequence: value.sequence,
+            },
         }
     }
 }

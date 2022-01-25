@@ -2,6 +2,9 @@ use crate::address::Address;
 use cosmos_sdk_proto::cosmos::auth::v1beta1::BaseAccount as ProtoBaseAccount;
 use serde::Deserialize;
 use tendermint_proto::types::Block;
+use cosmos_sdk_proto::cosmos::vesting::v1beta1::{
+    ContinuousVestingAccount, DelayedVestingAccount, PeriodicVestingAccount,
+};
 
 /// This struct represents the status of a Cosmos chain, instead of just getting the
 /// latest block height we mandate that chain status is used, this allows callers to
@@ -55,6 +58,50 @@ impl From<ProtoBaseAccount> for BaseAccount {
             account_number: value.account_number,
             sequence: value.sequence,
         }
+    }
+}
+/// A trait for all Cosmos account types that requires
+/// all types be sized and implement Clone
+pub trait CosmosAccount {
+    fn get_base_account(&self) -> BaseAccount;
+}
+
+impl CosmosAccount for ProtoBaseAccount {
+    fn get_base_account(&self) -> BaseAccount {
+        self.clone().into()
+    }
+}
+
+impl CosmosAccount for ContinuousVestingAccount {
+    fn get_base_account(&self) -> BaseAccount {
+        self.base_vesting_account
+            .clone()
+            .unwrap()
+            .base_account
+            .unwrap()
+            .into()
+    }
+}
+
+impl CosmosAccount for DelayedVestingAccount {
+    fn get_base_account(&self) -> BaseAccount {
+        self.base_vesting_account
+            .clone()
+            .unwrap()
+            .base_account
+            .unwrap()
+            .into()
+    }
+}
+
+impl CosmosAccount for PeriodicVestingAccount {
+    fn get_base_account(&self) -> BaseAccount {
+        self.base_vesting_account
+            .clone()
+            .unwrap()
+            .base_account
+            .unwrap()
+            .into()
     }
 }
 

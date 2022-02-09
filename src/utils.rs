@@ -6,6 +6,7 @@ use std::fmt::Display;
 use std::fmt::Formatter;
 use std::fmt::Result as FmtResult;
 use std::{str, usize};
+use tiny_keccak::{Hasher, Keccak};
 
 /// A function that takes a hexadecimal representation of bytes
 /// back into a stream of bytes.
@@ -147,6 +148,15 @@ pub fn encode_any(input: impl prost::Message, type_url: impl Into<String>) -> An
         type_url: type_url.into(),
         value,
     }
+}
+
+/// keccak256_hash is used in ethermint mode
+pub fn keccak256_hash(bytes: &[u8]) -> Vec<u8> {
+    let mut hasher = Keccak::v256();
+    hasher.update(bytes);
+    let mut resp = vec![0u8; 32];
+    hasher.finalize(&mut resp);
+    resp
 }
 
 #[cfg(test)]

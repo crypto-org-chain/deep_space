@@ -3,6 +3,7 @@ use cosmos_sdk_proto::cosmos::bank::v1beta1::MsgSend;
 use deep_space::Fee;
 use deep_space::Msg;
 use deep_space::PrivateKey;
+use deep_space::COSMOS_PUBKEY_URL;
 use deep_space::{Coin, MessageArgs};
 use std::fs::File;
 use std::io::Write;
@@ -36,7 +37,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         granter: None,
         payer: None,
     };
-    let msg = Msg::new("/cosmos.crypto.secp256k1.PubKey", send);
+    let msg = Msg::new(COSMOS_PUBKEY_URL, send);
 
     let args = MessageArgs {
         sequence: 0,

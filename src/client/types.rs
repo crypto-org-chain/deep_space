@@ -1,5 +1,6 @@
 use crate::address::Address;
 use cosmos_sdk_proto::cosmos::auth::v1beta1::BaseAccount as ProtoBaseAccount;
+use prost::Message;
 use serde::Deserialize;
 use tendermint_proto::types::Block;
 use cosmos_sdk_proto::cosmos::vesting::v1beta1::{
@@ -111,6 +112,24 @@ impl CosmosAccount for PeriodicVestingAccount {
             .unwrap()
             .into()
     }
+}
+
+impl CosmosAccount for EthAccount {
+    fn get_base_account(&self) -> BaseAccount {
+        self.base_account
+            .clone()
+            .unwrap()
+            .into()
+    }
+}
+
+/// EthAccount defines an Ethermint account.
+#[derive(Clone, PartialEq, Message)]
+pub struct EthAccount {
+    #[prost(message, optional, tag = "1")]
+    pub base_account: Option<ProtoBaseAccount>,
+    #[prost(bytes = "vec", tag = "2")]
+    pub code_hash: Vec<u8>,
 }
 
 #[cfg(test)]

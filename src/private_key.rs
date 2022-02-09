@@ -1,9 +1,10 @@
 use crate::mnemonic::Mnemonic;
 use crate::msg::Msg;
-use crate::public_key::PublicKey;
+use crate::public_key::{PublicKey, COSMOS_PUBKEY_URL};
 use crate::utils::bytes_to_hex_str;
 use crate::utils::encode_any;
 use crate::utils::hex_str_to_bytes;
+use crate::utils::keccak256_hash;
 use crate::{coin::Fee, Address};
 use crate::{error::*, utils::contains_non_hex_chars};
 use cosmos_sdk_proto::cosmos::crypto::secp256k1::PubKey as ProtoSecp256k1Pubkey;
@@ -36,6 +37,11 @@ pub struct TxParts {
     pub auth_info: AuthInfo,
     pub auth_buf: Vec<u8>,
     pub signatures: Vec<Vec<u8>>,
+}
+
+pub enum SignType {
+    Cosmos,
+    Ethermint,
 }
 
 /// This structure represents a private key of a Cosmos Network.
@@ -126,8 +132,7 @@ impl PrivateKey {
         let secp256k1 = Secp256k1::new();
         let sk = SecretKey::from_slice(&self.0)?;
         let pkey = PublicKeyEC::from_secret_key(&secp256k1, &sk);
-        let compressed = pkey.serialize();
-        Ok(PublicKey::from_bytes(compressed, prefix)?)
+        Ok(PublicKey::new(pkey, prefix)?)
     }
 
     /// Obtain an Address for a given private key, skipping the intermediate public key
@@ -145,6 +150,8 @@ impl PrivateKey {
         messages: &[Msg],
         args: MessageArgs,
         memo: impl Into<String>,
+        pk_url: &str,
+        sign_type: SignType,
     ) -> Result<TxParts, PrivateKeyError> {
         // prefix does not matter in this case, you could use a blank string
         let our_pubkey = self.to_public_key(PublicKey::DEFAULT_PREFIX)?;
@@ -165,7 +172,7 @@ impl PrivateKey {
             key: our_pubkey.to_vec(),
         };
 
-        let pk_any = encode_any(key, "/cosmos.crypto.secp256k1.PubKey".to_string());
+        let pk_any = encode_any(key, pk_url.to_string());
 
         let single = mode_info::Single { mode: 1 };
 
@@ -201,11 +208,23 @@ impl PrivateKey {
 
         let secp256k1 = Secp256k1::new();
         let sk = SecretKey::from_slice(&self.0)?;
-        let digest = Sha256::digest(&signdoc_buf);
-        let msg = CurveMessage::from_slice(&digest)?;
-        // Sign the signdoc
-        let signed = secp256k1.sign(&msg, &sk);
-        let compact = signed.serialize_compact().to_vec();
+        let compact = match sign_type {
+            SignType::Cosmos => {
+                let digest = Sha256::digest(&signdoc_buf);
+                let msg = CurveMessage::from_slice(&digest)?;
+                // Sign the signdoc
+                let signed = secp256k1.sign(&msg, &sk);
+                signed.serialize_compact().to_vec()
+            }
+            SignType::Ethermint => {
+                let hash = keccak256_hash(&signdoc_buf);
+                let s = Secp256k1::signing_only();
+                // SAFETY: hash is 32 bytes, as expected in `Message::from_slice` -- see `keccak256_hash`, hence `unwrap`
+                let sign_msg = CurveMessage::from_slice(hash.as_slice()).unwrap();
+                let (_, sig_bytes) = s.sign_recoverable(&sign_msg, &sk).serialize_compact();
+                sig_bytes.to_vec()
+            }
+        };
 
         Ok(TxParts {
             body,
@@ -216,15 +235,15 @@ impl PrivateKey {
         })
     }
 
-    /// Signs a transaction that contains at least one message using a single
-    /// private key, returns the standard Tx type, useful for simulations
-    pub fn get_signed_tx(
+    fn do_get_signed_tx(
         &self,
         messages: &[Msg],
         args: MessageArgs,
         memo: impl Into<String>,
+        pk_url: &str,
+        sign_type: SignType,
     ) -> Result<Tx, PrivateKeyError> {
-        let parts = self.build_tx(messages, args, memo)?;
+        let parts = self.build_tx(messages, args, memo, pk_url, sign_type)?;
         Ok(Tx {
             body: Some(parts.body),
             auth_info: Some(parts.auth_info),
@@ -233,14 +252,37 @@ impl PrivateKey {
     }
 
     /// Signs a transaction that contains at least one message using a single
-    /// private key.
-    pub fn sign_std_msg(
+    /// private key, returns the standard Tx type, useful for simulations
+    pub fn get_signed_tx_ethermint(
         &self,
         messages: &[Msg],
         args: MessageArgs,
         memo: impl Into<String>,
+        pk_url: &str,
+    ) -> Result<Tx, PrivateKeyError> {
+        self.do_get_signed_tx(messages, args, memo, pk_url, SignType::Ethermint)
+    }
+
+    /// Signs a transaction that contains at least one message using a single
+    /// private key, returns the standard Tx type, useful for simulations
+    pub fn get_signed_tx(
+        &self,
+        messages: &[Msg],
+        args: MessageArgs,
+        memo: impl Into<String>,
+    ) -> Result<Tx, PrivateKeyError> {
+        self.do_get_signed_tx(messages, args, memo, COSMOS_PUBKEY_URL, SignType::Cosmos)
+    }
+
+    fn do_sign_std_msg(
+        &self,
+        messages: &[Msg],
+        args: MessageArgs,
+        memo: impl Into<String>,
+        pk_url: &str,
+        sign_type: SignType,
     ) -> Result<Vec<u8>, PrivateKeyError> {
-        let parts = self.build_tx(messages, args, memo)?;
+        let parts = self.build_tx(messages, args, memo, pk_url, sign_type)?;
 
         let tx_raw = TxRaw {
             body_bytes: parts.body_buf,
@@ -254,6 +296,29 @@ impl PrivateKey {
         trace!("TXID {}", bytes_to_hex_str(&digest));
 
         Ok(txraw_buf)
+    }
+
+    /// Signs a transaction that contains at least one message using a single
+    /// private key.
+    pub fn sign_std_msg_ethermint(
+        &self,
+        messages: &[Msg],
+        args: MessageArgs,
+        memo: impl Into<String>,
+        pk_url: &str,
+    ) -> Result<Vec<u8>, PrivateKeyError> {
+        self.do_sign_std_msg(messages, args, memo, pk_url, SignType::Ethermint)
+    }
+
+    /// Signs a transaction that contains at least one message using a single
+    /// private key.
+    pub fn sign_std_msg(
+        &self,
+        messages: &[Msg],
+        args: MessageArgs,
+        memo: impl Into<String>,
+    ) -> Result<Vec<u8>, PrivateKeyError> {
+        self.do_sign_std_msg(messages, args, memo, COSMOS_PUBKEY_URL, SignType::Cosmos)
     }
 }
 
@@ -552,4 +617,21 @@ fn test_many_key_generation() {
         let cosmos_key = PrivateKey::from_secret(&secret);
         let _cosmos_address = cosmos_key.to_public_key("cosmospub").unwrap().to_address();
     }
+}
+
+#[test]
+fn test_ethermint() {
+    let private_key = PrivateKey::from_hd_wallet_path("m/44'/60'/0'/0/0", "visit craft resemble online window solution west chuckle music diesel vital settle comic tribe project blame bulb armed flower region sausage mercy arrive release", "").unwrap();
+    let pubkey = private_key.to_public_key("").unwrap();
+    let address = pubkey.to_ethermint_address_with_prefix("eth").unwrap();
+    // ethermint style
+    assert_eq!(
+        "eth12luku6uxehhak02py4rcz65zu0swh7wjanhxd0",
+        address.to_string()
+    );
+    // cosmos style
+    assert_eq!(
+        "eth15dj8rcvy3v43rqnftdwznl7hndtyptuyecf3wy",
+        private_key.to_address("eth").unwrap().to_string()
+    );
 }

@@ -13,6 +13,7 @@ use cosmos_sdk_proto::cosmos::tx::v1beta1::{
     mode_info, AuthInfo, ModeInfo, SignDoc, SignerInfo, TxBody, TxRaw,
 };
 use num_bigint::BigUint;
+use hmac::{Mac, Hmac};
 use prost::Message;
 use secp256k1::constants::CURVE_ORDER as CurveN;
 use secp256k1::Message as CurveMessage;
@@ -349,9 +350,6 @@ impl FromStr for PrivateKey {
 /// This derives the master key from seed bytes, the actual usage is typically
 /// for Cosmos key_import support, where we import a seed phrase.
 fn master_key_from_seed(seed_bytes: &[u8]) -> ([u8; 32], [u8; 32]) {
-    use hmac::crypto_mac::Mac;
-    use hmac::crypto_mac::NewMac;
-    use hmac::Hmac;
     type HmacSha512 = Hmac<Sha512>;
 
     let mut hasher = HmacSha512::new_from_slice(b"Bitcoin seed").unwrap();
@@ -377,9 +375,6 @@ fn get_child_key(
     i: u32,
     hardened: bool,
 ) -> ([u8; 32], [u8; 32]) {
-    use hmac::crypto_mac::Mac;
-    use hmac::crypto_mac::NewMac;
-    use hmac::Hmac;
     type HmacSha512 = Hmac<Sha512>;
 
     let i = if hardened { 2u32.pow(31) + i } else { i };

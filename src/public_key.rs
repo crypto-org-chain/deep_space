@@ -3,7 +3,7 @@ use crate::utils::{hex_str_to_bytes, keccak256_hash};
 use crate::{address::Address, utils::ArrayString};
 use bech32::Variant;
 use bech32::{self, FromBase32, ToBase32};
-use ripemd160::Ripemd160;
+use ripemd::Ripemd160;
 use sha2::{Digest, Sha256};
 use std::fmt::{self, Display, Formatter};
 use std::hash::Hash;
